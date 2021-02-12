@@ -1,19 +1,31 @@
-FROM alpine
+FROM alpine:3.9
+
+ARG VERSION="6.0.45"
+
+WORKDIR /build
+
+RUN wget -O unifi.zip https://dl.ui.com/unifi/${VERSION}/UniFi.unix.zip
+
+RUN unzip unifi.zip
+
+RUN rm UniFi/bin/mongod \
+&& apk add --no-cache mongodb \
+&& cp /usr/bin/mongod UniFi/bin/ \
+&& apk del --no-cache mongodb
+
+RUN mkdir UniFi/data && echo -e 'unifi.http.port=80\nunifi.https.port=443' >> UniFi/data/system.properties
+
+FROM alpine:3.9
 MAINTAINER Angdo <job.angdo@gmail.com>
 
-ARG VERSION="5.9.29"
-EXPOSE 80/tcp 443/tcp 6789/tcp 63010/udp 63011/tcp 63012/tcp
+ARG VERSION="6.0.45"
 
-RUN apk add --no-cache openjdk8-jre-base
+EXPOSE 80/tcp 443/tcp 3478/udp 5514/udp 8880/tcp 8843/tcp 6789/tcp 27117/tcp 10001/udp 1900/udp
 
-RUN apk add --no-cache mongodb \
-&& mkdir /unifi && mkdir /unifi/bin \
-&& cp /usr/bin/mongod /unifi/bin/ && apk del --no-cache mongodb
+WORKDIR /unifi
 
-RUN apk add --no-cache libcurl snappy libsasl yaml-cpp libpcrecpp boost-program_options boost-filesystem boost-system gcompat
+COPY --from=0 /build/UniFi /unifi
 
-RUN echo wget https://bintray.dragon.ivenfe.cc/docker/unifi/${VERSION}/$(apk --print-arch)/unifi_${VERSION}_$(apk --print-arch)_nomongodb.tar.bz2 \
-&&  wget https://bintray.dragon.ivenfe.cc/docker/unifi/${VERSION}/$(apk --print-arch)/unifi_${VERSION}_$(apk --print-arch)_nomongodb.tar.bz2 \
-&& tar -jvxf unifi_*.tar.bz2 && rm unifi_*.tar.bz2
+RUN apk add --no-cache openjdk8-jre-base libpcrecpp yaml-cpp libcurl libsasl snappy boost-program_options boost-filesystem boost-system gcompat
 
-ENTRYPOINT ["java","-cp","/unifi/lib/ace.jar","com.ubnt.ace.Launcher","start","-Djava.awt.headless=true","-Dfile.encoding=UTF-8","-Dunifi.datadir=/unifi/data","-Dunifi.logdir=/var/log/unifi","-Dunifi.rundir=/var/run/unifi"]
+ENTRYPOINT ["java","-Xms128M","-Xmx1024M","-cp","/usr/share/java/commons-daemon.jar:/unifi/lib/ace.jar","com.ubnt.ace.Launcher","start","-Djava.awt.headless=true","-Dfile.encoding=UTF-8","-Dunifi.core.enabled=false","-Dunifi.datadir=/unifi/data","-Dunifi.logdir=/var/log/unifi","-Dunifi.rundir=/var/run/unifi"]
